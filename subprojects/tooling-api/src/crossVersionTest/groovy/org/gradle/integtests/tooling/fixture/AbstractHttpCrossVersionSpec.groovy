@@ -16,6 +16,7 @@
 
 package org.gradle.integtests.tooling.fixture
 
+
 import org.gradle.test.fixtures.maven.MavenFileRepository
 import org.gradle.test.fixtures.server.http.MavenHttpModule
 import org.gradle.test.fixtures.server.http.MavenHttpRepository
@@ -43,61 +44,30 @@ abstract class AbstractHttpCrossVersionSpec extends ToolingApiSpecification {
     }
 
     Modules setupBuildWithArtifactDownloadDuringConfiguration() {
-        toolingApi.requireIsolatedUserHome()
-
-        def projectB = mavenHttpRepo.module('group', 'projectB', '1.0').publish()
-        def projectC = mavenHttpRepo.module('group', 'projectC', '1.5').publish()
-        def projectD = mavenHttpRepo.module('group', 'projectD', '2.0-SNAPSHOT').publish()
-
-        settingsFile << """
-            rootProject.name = 'root'
-            include 'a'
-        """
+        Modules modules = setupBuildWithDependencies()
         buildFile << """
-            allprojects {
-                apply plugin:'java-library'
-            }
-            repositories {
-               maven { url '${mavenHttpRepo.uri}' }
-            }
-            dependencies {
-                implementation project(':a')
-                implementation "group:projectB:1.0"
-                implementation "group:projectC:1.+"
-                implementation "group:projectD:2.0-SNAPSHOT"
-            }
             configurations.compileClasspath.each { println it }
         """
-
-        def modules = new Modules(projectB, projectC, projectD)
         modules.expectResolved()
         return modules
     }
 
     Modules setupBuildWithArtifactDownloadDuringTaskExecution() {
-        toolingApi.requireIsolatedUserHome()
+        def modules = setupBuildWithDependencies()
+        addResolveTask()
+        modules.expectResolved()
+        return modules
+    }
 
-        def projectB = mavenHttpRepo.module('group', 'projectB', '1.0').publish()
-        def projectC = mavenHttpRepo.module('group', 'projectC', '1.5').publish()
-        def projectD = mavenHttpRepo.module('group', 'projectD', '2.0-SNAPSHOT').publish()
+    Modules setupBuildWithFailedArtifactDownloadDuringTaskExecution() {
+        def modules = setupBuildWithDependencies()
+        addResolveTask()
+        modules.expectResolveFailure()
+        return modules
+    }
 
-        settingsFile << """
-            rootProject.name = 'root'
-            include 'a'
-        """
+    private void addResolveTask() {
         buildFile << """
-            allprojects {
-                apply plugin:'java-library'
-            }
-            repositories {
-               maven { url '${mavenHttpRepo.uri}' }
-            }
-            dependencies {
-                implementation project(':a')
-                implementation "group:projectB:1.0"
-                implementation "group:projectC:1.+"
-                implementation "group:projectD:2.0-SNAPSHOT"
-            }
             task resolve {
                 def files = configurations.compileClasspath
                 inputs.files files
@@ -106,9 +76,34 @@ abstract class AbstractHttpCrossVersionSpec extends ToolingApiSpecification {
                 }
             }
         """
+    }
 
+    Modules setupBuildWithDependencies() {
+        toolingApi.requireIsolatedUserHome()
+
+        def projectB = mavenHttpRepo.module('group', 'projectB', '1.0').publish()
+        def projectC = mavenHttpRepo.module('group', 'projectC', '1.5').publish()
+        def projectD = mavenHttpRepo.module('group', 'projectD', '2.0-SNAPSHOT').publish()
         def modules = new Modules(projectB, projectC, projectD)
-        modules.expectResolved()
+
+        settingsFile << """
+            rootProject.name = 'root'
+            include 'a'
+        """
+        buildFile << """
+            allprojects {
+                apply plugin:'java-library'
+            }
+            repositories {
+               maven { url '${mavenHttpRepo.uri}' }
+            }
+            dependencies {
+                implementation project(':a')
+                implementation "group:projectB:1.0"
+                implementation "group:projectC:1.+"
+                implementation "group:projectD:2.0-SNAPSHOT"
+            }
+        """
         return modules
     }
 
@@ -130,9 +125,19 @@ abstract class AbstractHttpCrossVersionSpec extends ToolingApiSpecification {
             projectC.pom.expectGet()
             projectC.artifact.expectGet()
 
-            projectD.pom.expectGet()
             projectD.metaData.expectGet()
+            projectD.pom.expectGet()
             projectD.artifact.expectGet()
+        }
+
+        def expectResolveFailure() {
+            projectB.pom.allowGetOrHead()
+            projectC.rootMetaData.expectGet()
+            projectC.pom.expectGetBroken()
+            projectC.pom.expectGetBroken()
+            projectC.pom.expectGetBroken()
+            projectD.metaData.allowGetOrHead()
+            projectD.pom.allowGetOrHead()
         }
     }
 }

@@ -107,8 +107,9 @@ class ProgressEvents implements ProgressListener {
                             // Ignore this for now
                         } else {
                             def duplicateName = operations.find({
+                                !it.failed && // ignore previous operations with the same display name that failed, eg for retry of downloads
                                 it.descriptor.displayName == descriptor.displayName &&
-                                    it.parent.descriptor == descriptor.parent
+                                    it.parent?.descriptor == descriptor.parent
                             })
                             if (duplicateName != null) {
                                 // Same display name and same parent
@@ -286,8 +287,7 @@ class ProgressEvents implements ProgressListener {
      * @param displayNames candidate display names (may be different depending on the Gradle version under test)
      */
     Operation operation(String... displayNames) {
-        assertHasZeroOrMoreTrees()
-        def candidates = operations.findAll { it.descriptor.displayName in displayNames }
+        def candidates = operations(displayNames)
         if (candidates.empty) {
             throw new AssertionFailedError("No operation with display name '${displayNames[0]}' found in:\n${describeList(operations)}")
         }
@@ -295,6 +295,16 @@ class ProgressEvents implements ProgressListener {
             throw new AssertionFailedError("Multiple operation with display name '${displayNames[0]}' found in:\n${describeList(operations)}")
         }
         return candidates[0]
+    }
+
+    /**
+     * Returns the operations with the given display name.
+     *
+     * @param displayNames candidate display names (may be different depending on the Gradle version under test)
+     */
+    List<Operation> operations(String... displayNames) {
+        assertHasZeroOrMoreTrees()
+        return operations.findAll { it.descriptor.displayName in displayNames }
     }
 
     /**

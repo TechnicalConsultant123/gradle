@@ -23,7 +23,7 @@ import org.gradle.tooling.ProjectConnection
 import org.gradle.util.GradleVersion
 
 class ArtifactDownloadProgressCrossVersionSpec extends AbstractHttpCrossVersionSpec {
-    @TargetGradleVersion(">=4.0")
+    @TargetGradleVersion(">5.6")
     def "generates events for downloading artifacts"() {
         given:
         def modules = setupBuildWithArtifactDownloadDuringConfiguration()
